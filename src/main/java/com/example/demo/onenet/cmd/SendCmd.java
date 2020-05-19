@@ -264,8 +264,8 @@ public class SendCmd{
     public static void main(String[] args) {
         //惊蛰 514901637
         SendCmd sendCmd = new SendCmd();
-//        String s = sendCmd.insectsAwakenSendCmd("514901637", "5UMvRXAk1UURxzWtaDQmpIlUJXk=",15,0);
-//        System.out.println(s);
+        String s = sendCmd.insectsAwakenSendCmd("514901637", "5UMvRXAk1UURxzWtaDQmpIlUJXk=",15,0);
+        System.out.println(s);
         sendCmd.grainRainTimingSendCmd("519705872","8YzeXRH3QQb6pBgUG3IunLeQG8I=");
     }
 }
