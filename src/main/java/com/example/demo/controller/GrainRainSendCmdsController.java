@@ -147,25 +147,25 @@ public class GrainRainSendCmdsController {
         return true;
     }
 
-    @RequestMapping(value = "",method = RequestMethod.POST)
+    @RequestMapping(value = "/grainRainTimer",method = RequestMethod.POST)
     @ResponseBody
     public boolean grainRainTimer(@RequestBody String params){
-
+        JSONObject jsonObject = JSONObject.parseObject(params);
+        String devId = jsonObject.getString("devId");
+        String key = jsonObject.getString("key");
+        String succ = "succ";
+        String errorMessage = sendCmd.grainRainTimingSendCmd(devId, key, jsonObject);
+        if(!succ.equals(errorMessage)){
+            return false;
+        }
         return true;
     }
 
-    @RequestMapping(value = "/timerMessage",method = RequestMethod.POST)
+    @RequestMapping(value = "/timerMessage",method = RequestMethod.GET)
     @ResponseBody
-    public Object timerMessage(/*@RequestBody String params*/String devId){
-//        JSONObject jsonObject = JSONObject.parseObject(params);
-//        String devId = jsonObject.getString("devId");
-//        String key = jsonObject.getString("key");
-//        String timer = jsonObject.getString("timer");
-//        GetDatastreamApi getDatastreamApi = new GetDatastreamApi(devId, timer, key);
-//        BasicResponse<DatastreamsResponse> basicResponse = getDatastreamApi.executeApi();
-//        Object currentValue = basicResponse.getData().getCurrentValue();
-        log.info(devId);
-        return devId==null?0:devId;
+    public Object timerMessage(@RequestBody String params){
+
+        return null;
     }
 
 }

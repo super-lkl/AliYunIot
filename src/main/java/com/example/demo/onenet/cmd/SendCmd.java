@@ -3,7 +3,9 @@ package com.example.demo.onenet.cmd;
 import cmcc.iot.onenet.javasdk.api.cmds.SendCmdsApi;
 import cmcc.iot.onenet.javasdk.response.BasicResponse;
 import cmcc.iot.onenet.javasdk.response.cmds.NewCmdsResponse;
+import com.alibaba.fastjson.JSONObject;
 import com.example.demo.util.XorUtil;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -11,6 +13,7 @@ import org.springframework.util.StringUtils;
  * @author 李康龙
  */
 @Component
+@Slf4j
 public class SendCmd{
 
     /**
@@ -158,13 +161,14 @@ public class SendCmd{
      * @param key
      * @return
      */
-    public String grainRainTimingSendCmd(String devId,String key){
+    public String grainRainTimingSendCmd(String devId, String key, JSONObject jsonObject){
         if(StringUtils.isEmpty(devId)||StringUtils.isEmpty(key)){
             return "error";
         }
         int id = Integer.parseInt(devId);
         int length = 0;
-        byte[] buffer = new byte[25];
+        //20+10*5
+        byte[] buffer = new byte[70];
         //帧头
         buffer[length++] = (byte) (0x95);
         //协议版本
@@ -188,22 +192,89 @@ public class SendCmd{
         //功能码
         buffer[length++] = (byte) (0x40);
         buffer[length++] = (byte) (0x04);
-        //长度
+        //长度 52 0x00 0x34
         buffer[length++] = (byte) (0x00);
-        buffer[length++] = (byte) (0x07);
+        buffer[length++] = (byte) (0x34);
         //静荷:Type类型
         buffer[length++] = (byte) (0x20);
-        //静荷:Len长度
-        buffer[length++] = (byte) (0x05);
-        //静荷：小时
-        buffer[length++] = (byte) (0x0F);
-        //静荷：分钟
-        buffer[length++] = (byte) (0x33);
-        //静荷：打开时间
-        buffer[length++] = (byte) (0x00);
+        //静荷:Len长度 50 0x32
+        buffer[length++] = (byte) (0x32);
+        for(int i = 0;i < 10;i++){
+            //静荷：小时
+            buffer[length++] = (byte) (jsonObject.getInteger("h"+(i + 1)).intValue());
+            //静荷：分钟
+            buffer[length++] = (byte) (jsonObject.getInteger("m"+(i + 1)).intValue());
+            //静荷：打开时间
+            int timer = jsonObject.getInteger("d" + (i + 1)).intValue();
+            buffer[length++] = (byte) (timer>>8);
+            buffer[length++] = (byte) (timer>>0);
+            //静荷：星期
+            buffer[length++] = (byte) (Integer.parseInt(jsonObject.getString("week"),2));
+        }
+        //校验码
+        buffer[length++] = (byte) (XorUtil.getXor(buffer));
+        return sendCmdCommon(devId,key,buffer);
+    }
+
+    /**
+     * 春分定时
+     * @param devId
+     * @param key
+     * @param jsonObject
+     * @return
+     */
+    public String vernalEquinoxTimingSendCmd(String devId, String key, JSONObject jsonObject){
+        if(StringUtils.isEmpty(devId)||StringUtils.isEmpty(key)){
+            return "error";
+        }
+        int id = Integer.parseInt(devId);
+        int length = 0;
+        //20+10*6
+        byte[] buffer = new byte[80];
+        //帧头
+        buffer[length++] = (byte) (0x95);
+        //协议版本
         buffer[length++] = (byte) (0x01);
-        //静荷：星期
-        buffer[length++] = (byte) (0x80);
+        //设备编号
+        buffer[length++] = (byte) (id>>24);
+        buffer[length++] = (byte) (id>>16);
+        buffer[length++] = (byte) (id>>8);
+        buffer[length++] = (byte) (id>>0);
+        //设备类型
+        buffer[length++]  = (byte) (0x00);
+        buffer[length++]  = (byte) (0x02);
+        //物理通道
+        buffer[length++]  = (byte) (0x83);
+        //帧序列号
+        buffer[length++]  = (byte) (0x00);
+        buffer[length++] = (byte) (0x08);
+        //连接周期
+        buffer[length++] = (byte) (0x00);
+        buffer[length++] = (byte) (0x3C);
+        //功能码
+        buffer[length++] = (byte) (0x40);
+        buffer[length++] = (byte) (0x04);
+        //长度 62 0x00 0x3E N*6+2
+        buffer[length++] = (byte) (0x00);
+        buffer[length++] = (byte) (0x3E);
+        //静荷:Type类型
+        buffer[length++] = (byte) (0x22);
+        //静荷:Len长度 60 0x3C N*6
+        buffer[length++] = (byte) (0x3C);
+        for(int i = 0;i < 10;i++){
+            //静荷：小时
+            buffer[length++] = (byte) (jsonObject.getInteger("h"+(i + 1)).intValue());
+            //静荷：分钟
+            buffer[length++] = (byte) (jsonObject.getInteger("m"+(i + 1)).intValue());
+            //静荷：打开时间
+            int timer = jsonObject.getInteger("d" + (i + 1));
+            buffer[length++] = (byte) (timer >> 8);
+            buffer[length++] = (byte) (timer);
+            //静荷：星期
+            buffer[length++] = (byte) (Integer.parseInt(jsonObject.getString("week"),2));
+            //开关
+            buffer[length++] = (byte) (1);
+        }
         //校验码
         buffer[length++] = (byte) (XorUtil.getXor(buffer));
         return sendCmdCommon(devId,key,buffer);
@@ -261,11 +332,187 @@ public class SendCmd{
         return sendCmdCommon(devId,key,buffer);
     }
 
+    /**
+     * 立春发送命令
+     * @param devId
+     * @param key
+     * @param switchValue
+     * @return
+     */
+    public String springBeginsSendCmd(String devId,String key,int switchValue){
+        if(StringUtils.isEmpty(devId)||StringUtils.isEmpty(key)){
+            return "error";
+        }
+        int id = Integer.parseInt(devId);
+        int length = 0;
+        byte[] buffer = new byte[21];
+        //帧头
+        buffer[length++] = (byte) (0x95);
+        //协议版本
+        buffer[length++] = (byte) (0x01);
+        //设备编号
+        buffer[length++] = (byte) (id>>24);
+        buffer[length++] = (byte) (id>>16);
+        buffer[length++] = (byte) (id>>8);
+        buffer[length++] = (byte) (id);
+        //设备类型
+        buffer[length++]  = (byte) (0x00);
+        buffer[length++]  = (byte) (0x03);
+        //物理通道
+        buffer[length++]  = (byte) (0x83);
+        //帧序列号
+        buffer[length++]  = (byte) (0x00);
+        buffer[length++] = (byte) (0x03);
+        //连接周期
+        buffer[length++] = (byte) (0x00);
+        buffer[length++] = (byte) (0x3C);
+        //功能码
+        buffer[length++] = (byte) (0x40);
+        buffer[length++] = (byte) (0x03);
+        //长度
+        buffer[length++] = (byte) (0x00);
+        buffer[length++] = (byte) (0x03);
+        //静荷:Type类型
+        buffer[length++] = (byte) (0x17);
+        //静荷:Len长度
+        buffer[length++] = (byte) (0x01);
+        //静荷：值 Value    0:停止 1：正转 2：反转 【正转和反转必须先停止在进行切换】
+        buffer[length++] = (byte) (switchValue);
+        //校验码
+        buffer[length++] = (byte) (XorUtil.getXor(buffer));
+        return sendCmdCommon(devId,key,buffer);
+    }
+
+    /**
+     * 立春定时
+     * @param devId
+     * @param key
+     * @return
+     */
+    public String springBeginsTimingSendCmd(String devId,String key){
+        if(StringUtils.isEmpty(devId)||StringUtils.isEmpty(key)){
+            return "error";
+        }
+        int id = Integer.parseInt(devId);
+        int length = 0;
+        byte[] buffer = new byte[25];
+        //帧头
+        buffer[length++] = (byte) (0x95);
+        //协议版本
+        buffer[length++] = (byte) (0x01);
+        //设备编号
+        buffer[length++] = (byte) (id>>24);
+        buffer[length++] = (byte) (id>>16);
+        buffer[length++] = (byte) (id>>8);
+        buffer[length++] = (byte) (id);
+        //设备类型
+        buffer[length++]  = (byte) (0x00);
+        buffer[length++]  = (byte) (0x03);
+        //物理通道
+        buffer[length++]  = (byte) (0x83);
+        //帧序列号
+        buffer[length++]  = (byte) (0x00);
+        buffer[length++] = (byte) (0x0B);
+        //连接周期
+        buffer[length++] = (byte) (0x00);
+        buffer[length++] = (byte) (0x3C);
+        //功能码
+        buffer[length++] = (byte) (0x40);
+        buffer[length++] = (byte) (0x04);
+        //长度 N*6+2 / N*5+2
+        buffer[length++] = (byte) (0x00);
+        buffer[length++] = (byte) (0x07);
+        //静荷:Type类型
+        buffer[length++] = (byte) (0x1B);
+        //静荷:Len长度 N*5
+        buffer[length++] = (byte) (0x05);
+        //静荷：小时
+        buffer[length++] = (byte) (14);
+        //静荷：分钟
+        buffer[length++] = (byte) (12);
+        //静荷：打开时间+卷帘状态
+        buffer[length++] = (byte) (0x80);
+        buffer[length++] = (byte) (0x01);
+        //静荷：循环周期
+        buffer[length++] = (byte) (0x80);
+        //校验码
+        buffer[length++] = (byte) (XorUtil.getXor(buffer));
+        return sendCmdCommon(devId,key,buffer);
+    }
+
     public static void main(String[] args) {
         //惊蛰 514901637
         SendCmd sendCmd = new SendCmd();
-        String s = sendCmd.insectsAwakenSendCmd("514901637", "5UMvRXAk1UURxzWtaDQmpIlUJXk=",15,0);
-        System.out.println(s);
-        sendCmd.grainRainTimingSendCmd("519705872","8YzeXRH3QQb6pBgUG3IunLeQG8I=");
+//        String jsonStr = "{\"h1\":11,\"h2\":0,\"h3\":0,\"h4\":0,\"h5\":0,\"h6\":0,\"h7\":0,\"h8\":0,\"h9\":0,\"h10\":0," +
+//                "\"m1\":16,\"m2\":0,\"m3\":0,\"m4\":0,\"m5\":0,\"m6\":0,\"m7\":0,\"m8\":0,\"m9\":0,\"m10\":0," +
+//                "\"d1\":2,\"d2\":0,\"d3\":0,\"d4\":0,\"d5\":0,\"d6\":0,\"d7\":0,\"d8\":0,\"d9\":0,\"d10\":0," +
+//                "\"week\":\"10000000\"}";
+//        JSONObject jsonObject = JSONObject.parseObject(jsonStr);
+//        log.info("json:"+jsonObject);
+//        String s = sendCmd.vernalEquinoxTimingSendCmd("514901472", "2LCG3DHHS69eH7RK1Q8R=70k7oI=", jsonObject);
+//        System.out.println(s);
+
+//        String s = sendCmd.testVETiming("514901472", "2LCG3DHHS69eH7RK1Q8R=70k7oI=");
+//        System.out.println(s);
+        //立春
+//        sendCmd.springBeginsSendCmd("539246614","g7oROzGyKmsaxC5zBtLjp8yoz5M=",2);
+        sendCmd.springBeginsTimingSendCmd("539246614", "g7oROzGyKmsaxC5zBtLjp8yoz5M=");
+    }
+
+    /**
+     * 春分测试一个定时
+     * @param devId
+     * @param key
+     * @return
+     */
+    public String testVETiming(String devId,String key){
+        int id = Integer.parseInt(devId);
+        int length = 0;
+        //20+10*6
+        byte[] buffer = new byte[26];
+        //帧头
+        buffer[length++] = (byte) (0x95);
+        //协议版本
+        buffer[length++] = (byte) (0x01);
+        //设备编号
+        buffer[length++] = (byte) (id>>24);
+        buffer[length++] = (byte) (id>>16);
+        buffer[length++] = (byte) (id>>8);
+        buffer[length++] = (byte) (id>>0);
+        //设备类型
+        buffer[length++]  = (byte) (0x00);
+        buffer[length++]  = (byte) (0x02);
+        //物理通道
+        buffer[length++]  = (byte) (0x83);
+        //帧序列号
+        buffer[length++]  = (byte) (0x00);
+        buffer[length++] = (byte) (0x08);
+        //连接周期
+        buffer[length++] = (byte) (0x00);
+        buffer[length++] = (byte) (0x3C);
+        //功能码
+        buffer[length++] = (byte) (0x40);
+        buffer[length++] = (byte) (0x04);
+        //长度 62 0x00 0x3E
+        buffer[length++] = (byte) (0x00);
+        buffer[length++] = (byte) (0x08);
+        //静荷:Type类型
+        buffer[length++] = (byte) (0x22);
+        //静荷:Len长度 50 0x32 N*6
+        buffer[length++] = (byte) (0x06);
+        //静荷：小时
+        buffer[length++] = (byte) (0x0B);
+        //静荷：分钟
+        buffer[length++] = (byte) (0x0B);
+        //静荷：打开时间
+        buffer[length++] = (byte) (0x00);
+        buffer[length++] = (byte) (0x01);
+        //静荷：星期
+        buffer[length++] = (byte) (0x80);
+        //开关
+        buffer[length++] = (byte) (1);
+        //校验码
+        buffer[length++] = (byte) (XorUtil.getXor(buffer));
+        return sendCmdCommon(devId,key,buffer);
     }
 }
